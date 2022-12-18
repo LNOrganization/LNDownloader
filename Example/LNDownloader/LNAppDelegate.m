@@ -7,11 +7,21 @@
 //
 
 #import "LNAppDelegate.h"
+#import "LNViewController.h"
 
 @implementation LNAppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
+    
+    self.window = [[UIWindow alloc] initWithFrame:CGRectMake(0, 0, [UIScreen mainScreen].bounds.size.width, [UIScreen mainScreen].bounds.size.height)];
+    self.window.backgroundColor = [UIColor whiteColor];
+    [self.window makeKeyAndVisible];
+    
+    LNViewController *vc = [[LNViewController alloc] init];
+    UINavigationController *rootVc = [[UINavigationController alloc] initWithRootViewController:vc];
+    self.window.rootViewController = rootVc;
+    
     // Override point for customization after application launch.
     return YES;
 }

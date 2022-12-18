@@ -1,0 +1,16 @@
+PODS:
+  - LNDownloader (0.1.0)
+
+DEPENDENCIES:
+  - LNDownloader (from `../`)
+
+EXTERNAL SOURCES:
+  LNDownloader:
+    :path: "../"
+
+SPEC CHECKSUMS:
+  LNDownloader: 23e265875e10b2dc55c9f09a8a8e1bd09ffc1e63
+
+PODFILE CHECKSUM: d059283801353522b080cc20b9190e4f53768002
+
+COCOAPODS: 1.11.3

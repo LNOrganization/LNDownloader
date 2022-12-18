@@ -1,0 +1,22 @@
+{
+  "name": "LNDownloader",
+  "version": "0.1.0",
+  "summary": "A short description of LNDownloader.",
+  "description": "TODO: Add long description of the pod here.",
+  "homepage": "https://github.com/dongjianxiong/LNDownloader",
+  "license": {
+    "type": "MIT",
+    "file": "LICENSE"
+  },
+  "authors": {
+    "dongjianxiong": "jianxiong20090919@126.com"
+  },
+  "source": {
+    "git": "https://github.com/dongjianxiong/LNDownloader.git",
+    "tag": "0.1.0"
+  },
+  "platforms": {
+    "ios": "10.0"
+  },
+  "source_files": "LNDownloader/Classes/**/*"
+}

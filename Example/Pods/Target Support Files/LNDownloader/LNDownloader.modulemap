@@ -1,0 +1,6 @@
+framework module LNDownloader {
+  umbrella header "LNDownloader-umbrella.h"
+
+  export *
+  module * { export * }
+}

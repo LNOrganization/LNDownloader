@@ -1,0 +1,6 @@
+framework module Pods_LNDownloader_Tests {
+  umbrella header "Pods-LNDownloader_Tests-umbrella.h"
+
+  export *
+  module * { export * }
+}
