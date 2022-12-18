@@ -9,5 +9,5 @@ git tag $version
 echo "Begin push a tag $version"
 git push origin $version
 echo "Begin to lint $version"
-pod spec lint LNFeedModule.podspec --sources=https://github.com/CocoaPods/Specs.git, https://github.com/NoNameOrganazation/LNSpec.git --use-libraries --allow-warnings --verbose
+pod spec lint LNDownloader.podspec --use-libraries --allow-warnings --verbose
              
