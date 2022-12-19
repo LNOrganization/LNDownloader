@@ -140,7 +140,11 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
         associateTask.stateBlock = stateBlock;
         associateTask.completionBlock = completionBlock;
         [associateTask setupWithOtherTask:existTask];
-        LN_SAFE_BLOCK(progressBlock, receivedSize, totalSize, 1.0);
+        CGFloat progress = 0;
+        if(totalSize > 0){
+            progress = 1.0 * receivedSize / totalSize;
+        }
+        LN_SAFE_BLOCK(progressBlock, receivedSize, totalSize, progress);
         [existTask.associateTasks addObject:associateTask];
         [self resumeTask:existTask];
         return;
