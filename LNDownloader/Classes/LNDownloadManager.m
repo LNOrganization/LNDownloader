@@ -57,11 +57,12 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
 {
     dispatch_semaphore_t _taskLock;
 }
-@property(nonatomic, strong) NSOperationQueue *delegateQueue;
 
 @property(nonatomic, strong) NSMutableDictionary   *downloadTasksDic;
 @property(nonatomic, strong) NSMutableArray        *downloadingTasks;
 @property(nonatomic, strong) NSMutableArray        *downloadWaitingTasks;
+
+@property(nonatomic, strong) NSOperationQueue *delegateQueue;
 
 @property(nonatomic, copy) NSString  *filesTotalSizePlistPath;
 
@@ -86,12 +87,13 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
 {
     self = [super init];
     if (self) {
-        _delegateQueue = [[NSOperationQueue alloc] init];
         _downloadTasksDic = [[NSMutableDictionary alloc] init];
         _downloadingTasks = [[NSMutableArray alloc] init];
         _downloadWaitingTasks = [[NSMutableArray alloc] init];
         _taskLock = dispatch_semaphore_create(1);
         _maxConcurrentDownloadCount = LNUnlimitedConcurrentDownloadCount;
+        _delegateQueue = [[NSOperationQueue alloc] init];
+        _delegateQueue.name = @"com.LNDownloader.LNDownloadManager.delegateQueue";
     }
     return self;
 }

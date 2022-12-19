@@ -1,3 +1,3 @@
 
-pod lib lint LNDownloader.podspec -allow-warnings --verbose
+pod lib lint LNDownloader.podspec --allow-warnings --verbose
 

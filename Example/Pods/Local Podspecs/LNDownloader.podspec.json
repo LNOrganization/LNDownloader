@@ -1,9 +1,9 @@
 {
   "name": "LNDownloader",
   "version": "0.1.0",
-  "summary": "A short description of LNDownloader.",
-  "description": "TODO: Add long description of the pod here.",
-  "homepage": "https://github.com/dongjianxiong/LNDownloader",
+  "summary": "文件下载器",
+  "description": "文件下载器。支持并行下载，断点续传。",
+  "homepage": "https://github.com/dongjianxiong",
   "license": {
     "type": "MIT",
     "file": "LICENSE"
@@ -12,7 +12,7 @@
     "dongjianxiong": "jianxiong20090919@126.com"
   },
   "source": {
-    "git": "https://github.com/dongjianxiong/LNDownloader.git",
+    "git": "https://github.com/NoNameOrganazation/LNDownloader.git",
     "tag": "0.1.0"
   },
   "platforms": {
