@@ -182,6 +182,8 @@
         }];
     }else if(cell.state == LNDownloadStateRunning){
         [[LNDownloadManager defaultManager] suspendDownloadOfURL:url];
+    }else if(cell.state == LNDownloadStateSuspended){
+        [[LNDownloadManager defaultManager] resumeDownloadOfURL:url];
     }else if(cell.state == LNDownloadStateCompleted){
         [[LNDownloadManager defaultManager] deleteFileOfURL:url];
         CGFloat progress = [[LNDownloadManager defaultManager] downloadedProgressOfURL:url];

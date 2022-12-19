@@ -581,7 +581,9 @@ didCompleteWithError:(NSError *)error
     NSString *fileName = dataTask.taskDescription;
     LNDownloadTask *task = [self getTaskWithFileName:fileName];
     if(!task) return;
-    
+    if (task.state == LNDownloadStateSuspended || task.state == LNDownloadStateCanceled) {
+        return;
+    }
     BOOL isSucceed = error == nil ? YES : NO;
     [self endTask:task isSucceed:isSucceed];
     if(task.destPath){
