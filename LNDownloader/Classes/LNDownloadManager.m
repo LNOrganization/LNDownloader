@@ -122,50 +122,62 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
         LN_SAFE_BLOCK(completionBlock, NO, nil, error);
         return;
     }
-    LNDownloadTask *didCompletionTask = [self downloadCompletionTaskWithURL:URL];
-    if(didCompletionTask) {
+
+    NSString *fileName = LNFileName(URL);
+    NSString *filePath = [self fullFilePathWithFileName:fileName];
+    NSInteger totalSize = [self totalSizeofFileName:fileName];
+    NSInteger receivedSize = [self downloadedSizeWithFilePath:filePath];
+    if(receivedSize != 0 && receivedSize == totalSize){// Task is Finish
         LN_SAFE_BLOCK(stateBlock, LNDownloadStateCompleted);
-        LN_SAFE_BLOCK(progressBlock, didCompletionTask.totalSize, didCompletionTask.totalSize, 1.0);
-        LN_SAFE_BLOCK(completionBlock, YES, didCompletionTask.filePath, nil);
+        LN_SAFE_BLOCK(progressBlock, receivedSize, totalSize, 1.0);
+        LN_SAFE_BLOCK(completionBlock, YES, filePath, nil);
+        return;
+    }
+    LNDownloadTask *existTask = [self getTaskWithURL:URL];
+    if(existTask){
+        LNDownloadTask *associateTask = [[LNDownloadTask alloc] init];
+        associateTask.progressBlock = progressBlock;
+        associateTask.stateBlock = stateBlock;
+        associateTask.completionBlock = completionBlock;
+        [associateTask setupWithOtherTask:existTask];
+        LN_SAFE_BLOCK(progressBlock, receivedSize, totalSize, 1.0);
+        [existTask.associateTasks addObject:associateTask];
+        [self resumeTask:existTask];
         return;
     }
     
-    LNDownloadTask *downloadingTask = [self getDownloadingTaskWithURL:URL];
-    if(downloadingTask){
-        LNDownloadTask *task = [[LNDownloadTask alloc] init];
-        task.progressBlock = progressBlock;
-        task.stateBlock = stateBlock;
-        task.completionBlock = completionBlock;
-        [task setupWithOtherTask:downloadingTask];
-        [downloadingTask.associateTasks addObject:task];
-        return;
-    }
-    NSString *filePath = [self fullFilePathWithURL:URL];
-    // 读取已下载内容，以支持断线续传
-    NSInteger receivedSize =  [self downloadedSizeWithFilePath:filePath];
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:URL];
-    [request setValue:[NSString stringWithFormat:@"bytes=%ld-", (long)receivedSize] forHTTPHeaderField:@"Range"];
-    NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
-    NSURLSession *session = [NSURLSession sessionWithConfiguration:config delegate:(id)self delegateQueue:_delegateQueue];
-    NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:[request copy]];
-    NSString *fileName = LNDownloadFileNameForURL(URL);
-    dataTask.taskDescription = fileName;
+    NSURLSessionDataTask *dataTask = [self createDataTaskWithURL:URL];
     LNDownloadTask *task = [[LNDownloadTask alloc] init];
-    task.fileName = fileName;
-    task.filePath = filePath;
-    task.receivedSize = receivedSize;
-    task.destPath = destPath;
-    task.writeStream = [NSOutputStream outputStreamToFileAtPath:filePath append:YES];
     task.dataTask = dataTask;
     task.URL = URL;
+    task.fileName = fileName;
+    task.filePath = filePath;
+    task.destPath = destPath;
+    task.receivedSize = receivedSize;
+    task.writeStream = [NSOutputStream outputStreamToFileAtPath:filePath append:YES];
     task.stateBlock = stateBlock;
     task.progressBlock = progressBlock;
     task.completionBlock = completionBlock;
     [self startTask:task];
 }
 
+- (NSURLSessionDataTask *)createDataTaskWithURL:(NSURL *)URL
+{
+    NSString *fileName = LNFileName(URL);
+    NSString *filePath = [self fullFilePathWithFileName:fileName];
+    NSInteger receivedSize =  [self downloadedSizeWithFilePath:filePath];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:URL];
+    // 读取已下载内容，以支持断线续传
+    [request setValue:[NSString stringWithFormat:@"bytes=%ld-", (long)receivedSize] forHTTPHeaderField:@"Range"];
+    NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:config delegate:(id)self delegateQueue:_delegateQueue];
+    NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:[request copy]];
+    dataTask.taskDescription = fileName;///通过fileName将dataTask和LNDownloadTask进行关联
+    return dataTask;
+}
+
 - (void)suspendDownloadOfURL:(NSURL *)URL{
-    LNDownloadTask *task = [self getDownloadingTaskWithURL:URL];
+    LNDownloadTask *task = [self getTaskWithURL:URL];
     if(!task) return;
     [self suspendTask:task];
 }
@@ -176,7 +188,7 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
 
 
 - (void)resumeDownloadOfURL:(NSURL *)URL{
-    LNDownloadTask *task = [self getDownloadingTaskWithURL:URL];
+    LNDownloadTask *task = [self getTaskWithURL:URL];
     if(!task) return;
     [self resumeTask:task];
 }
@@ -187,7 +199,7 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
 
 
 - (void)cancelDownloadOfURL:(NSURL *)URL{
-    LNDownloadTask *task = [self getDownloadingTaskWithURL:URL];
+    LNDownloadTask *task = [self getTaskWithURL:URL];
     if(!task) return;
     [self cancelTask:task];
 }
@@ -204,17 +216,17 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
 
 - (CGFloat)downloadedProgressOfURL:(NSURL *)URL{
     
-    LNDownloadTask *task = [self downloadCompletionTaskWithURL:URL];
-    if(task){
+    NSString *fileName = LNFileName(URL);
+    NSString *filePath = [self fullFilePathWithFileName:fileName];
+    NSInteger receivedSize =  [self downloadedSizeWithFilePath:filePath];
+    NSInteger totalSize = [self totalSizeofFileName:fileName];
+    
+    if(receivedSize != 0 && receivedSize == totalSize){
         return 1.0;
     }
-    NSInteger totalSize = [self totalSizeofFileWithURL:URL];
     if (totalSize == 0) {
         return 0.0;
     }
-    NSString *filePath = [self fullFilePathWithURL:URL];
-    NSInteger receivedSize = [self downloadedSizeWithFilePath:filePath];
-
     return 1.0 * receivedSize / totalSize;
 }
 
@@ -252,6 +264,62 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
 
 #pragma mark - Private
 #pragma mark - Download task safe operation
+
+- (LNDownloadTask *)getTaskWithFileName:(NSString *)fileName
+{
+    if(!fileName) return nil;
+    LNDownloadTask *task = nil;
+    LN_LOCK(_taskLock);
+    task = [_downloadTasksDic objectForKey:fileName];
+    LN_UNLOCK(_taskLock);
+    return task;
+}
+
+- (LNDownloadTask *)getTaskWithURL:(NSURL *)URL
+{
+    NSString *fileName = LNDownloadFileNameForURL(URL);
+    return [self getTaskWithFileName:fileName];
+}
+
+//- (BOOL)isDownloadingTask:(LNDownloadTask *)task
+//{
+//    if(!task) return NO;
+//    BOOL loading = NO;
+//    LN_LOCK(_taskLock);
+//    if([_downloadingTasks containsObject:task]){
+//        loading = YES;
+//    }
+//    LN_UNLOCK(_taskLock);
+//
+//    return loading;
+//}
+
+
+- (BOOL)isCompletionURL:(NSURL *)URL
+{
+    NSString *fileName = LNFileName(URL);
+    NSString *filePath = [self fullFilePathWithFileName:fileName];
+    NSInteger receivedSize =  [self downloadedSizeWithFilePath:filePath];
+    NSInteger totalSize = [self totalSizeofFileName:fileName];
+    if(receivedSize != 0 && receivedSize == totalSize){
+        return YES;
+    }
+    return NO;
+}
+
+
+- (BOOL)isCompletionTask:(LNDownloadTask *)task
+{
+    if(!task) return NO;
+    NSInteger receivedSize = [self downloadedSizeWithFilePath:task.filePath];
+    NSInteger totalSize = [self totalSizeofFileName:task.fileName];
+    if(receivedSize != 0 && receivedSize == totalSize){
+        return YES;
+    }
+    return NO;
+}
+
+
 - (BOOL)isNeedWaiting
 {
     BOOL ret = YES;
@@ -267,12 +335,12 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
     LN_LOCK(_taskLock);
     [_downloadTasksDic setObject:task forKey:task.fileName];
     if([self isNeedWaiting]){//start when un limit or downloading count less than max count
-        [_downloadWaitingTasks addObject:task];
         task.state = LNDownloadStateWaiting;
+        [_downloadWaitingTasks addObject:task];
     }else{
-        [_downloadingTasks addObject:task];
-        [task.dataTask resume];
         task.state = LNDownloadStateRunning;
+        [_downloadingTasks addObject:task];
+        [self _doResumeTask:task];
     }
     LN_UNLOCK(_taskLock);
 }
@@ -282,27 +350,38 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
     if(!task) return;
     LN_LOCK(_taskLock);
     if(![self isNeedWaiting]){//start when un limit or downloading count less than max count
-        [_downloadingTasks addObject:task];
-        [task.dataTask resume];
         task.state = LNDownloadStateRunning;
+        if(![_downloadingTasks containsObject:task]){
+            [_downloadingTasks addObject:task];
+        }
+        [self _doResumeTask:task];
     }else{
-        [_downloadWaitingTasks addObject:task];
         task.state = LNDownloadStateWaiting;
+        if(![_downloadWaitingTasks containsObject:task]){
+            [_downloadWaitingTasks addObject:task];
+        }
     }
     LN_UNLOCK(_taskLock);
+}
+
+- (void)_doResumeTask:(LNDownloadTask *)task
+{
+    if(task.dataTask.state == NSURLSessionTaskStateCompleted || task.dataTask.state == NSURLSessionTaskStateCanceling){
+        task.dataTask = [self createDataTaskWithURL:task.URL];
+    }
+    [task.dataTask resume];
 }
 
 - (void)resumeNextTask
 {
     LN_LOCK(_taskLock);
-    if(_downloadWaitingTasks.count > 0){
-        if(![self isNeedWaiting]){//start when un limit or downloading count less than max count
-            LNDownloadTask *task = [_downloadWaitingTasks firstObject];
-            [task.dataTask resume];
-            [_downloadWaitingTasks removeObjectAtIndex:0];
-            [_downloadingTasks addObject:task];
-            task.state = LNDownloadStateRunning;
-        }
+    if(_downloadWaitingTasks.count > 0 && ![self isNeedWaiting]){
+        //start when un limit or downloading count less than max count
+        LNDownloadTask *task = [_downloadWaitingTasks firstObject];
+        task.state = LNDownloadStateRunning;
+        [self _doResumeTask:task];
+        [_downloadWaitingTasks removeObjectAtIndex:0];
+        [_downloadingTasks addObject:task];
     }
     LN_UNLOCK(_taskLock);
 }
@@ -315,43 +394,23 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
     LN_LOCK(_taskLock);
     NSArray *downloadTasks = self.downloadTasksDic.allValues;
     for (LNDownloadTask *task in downloadTasks) {
-        LNDownloadState downloadState;
         if (![self isNeedWaiting]) {
+            task.state = LNDownloadStateRunning;
             [self.downloadingTasks addObject:task];
-            [task.dataTask resume];
-            downloadState = LNDownloadStateRunning;
+            [self _doResumeTask:task];
         } else {
+            task.state = LNDownloadStateWaiting;
             [self.downloadWaitingTasks addObject:task];
-            downloadState = LNDownloadStateWaiting;
         }
-        dispatch_async(dispatch_get_main_queue(), ^{
-            LN_SAFE_BLOCK(task.stateBlock, downloadState);
-        });
     }
     LN_UNLOCK(_taskLock);
-}
-
-
-- (LNDownloadTask *)getTaskWithFileName:(NSString *)fileName
-{
-    if(!fileName) return nil;
-    LNDownloadTask *task = nil;
-    LN_LOCK(_taskLock);
-    task = [_downloadTasksDic objectForKey:fileName];
-    LN_UNLOCK(_taskLock);
-    return task;
-}
-
-- (LNDownloadTask *)getDownloadingTaskWithURL:(NSURL *)URL
-{
-    NSString *fileName = LNDownloadFileNameForURL(URL);
-    return [self getTaskWithFileName:fileName];
 }
 
 - (void)cancelTask:(LNDownloadTask *)task
 {
     if(!task) return;
     LN_LOCK(_taskLock);
+    task.state = LNDownloadStateCanceled;
     [_downloadTasksDic removeObjectForKey:task.fileName];
     if([_downloadWaitingTasks containsObject:task]){
         [_downloadWaitingTasks removeObject:task];
@@ -360,7 +419,6 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
         [_downloadingTasks removeObject:task];
     }
     [task closeWriteStream];
-    task.state = LNDownloadStateCanceled;
     LN_UNLOCK(_taskLock);
     /**取消一个任务，填充下一个任务*/
     [self resumeNextTask];
@@ -371,8 +429,8 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
     LN_LOCK(_taskLock);
     if(self.downloadTasksDic.count > 0){
         for (LNDownloadTask *task in self.downloadTasksDic.allValues) {
-            [task.dataTask cancel];
             task.state = LNDownloadStateCanceled;
+            [task.dataTask cancel];
         }
         [self.downloadWaitingTasks removeAllObjects];
         [self.downloadingTasks removeAllObjects];
@@ -385,14 +443,19 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
 {
     if(!task) return;
     LN_LOCK(_taskLock);
+    task.state = LNDownloadStateSuspended;
     if([_downloadWaitingTasks containsObject:task]){
+        if(task.state == NSURLSessionTaskStateRunning){
+            [task.dataTask suspend];
+        }
         [_downloadWaitingTasks removeObject:task];
+        
     }else{
         [task.dataTask suspend];
         [_downloadingTasks removeObject:task];
     }
-    task.state = LNDownloadStateSuspended;
     LN_UNLOCK(_taskLock);
+    [self resumeNextTask];
 }
 
 - (void)suspendAllDownloadTasks
@@ -404,14 +467,17 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
     if(self.downloadWaitingTasks.count > 0){
         for (LNDownloadTask *task in self.downloadWaitingTasks) {
             task.state = LNDownloadStateSuspended;
+            if(task.state == NSURLSessionTaskStateRunning){
+                [task.dataTask suspend];
+            }
         }
         [self.downloadWaitingTasks removeAllObjects];
     }
 
     if(self.downloadingTasks.count > 0){
         for (LNDownloadTask *task in self.downloadingTasks) {
-            [task.dataTask suspend];
             task.state = LNDownloadStateSuspended;
+            [task.dataTask suspend];
         }
         [self.downloadingTasks removeAllObjects];
     }
@@ -423,13 +489,14 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
     if(!task) return;
     LN_LOCK(_taskLock);
     [task closeWriteStream];
-    [_downloadTasksDic removeObjectForKey:task.fileName];
-    [_downloadingTasks removeObject:task];
     if(isSucceed){
         task.state = LNDownloadStateCompleted;
     }else{
         task.state = LNDownloadStateFailed;
     }
+    [_downloadTasksDic removeObjectForKey:task.fileName];
+    [_downloadingTasks removeObject:task];
+    [_downloadWaitingTasks removeObject:task];
     LN_UNLOCK(_taskLock);
 }
 
@@ -488,25 +555,25 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
     return [self.downloadFileDirectory stringByAppendingPathComponent:fileName];
 }
 
-- (LNDownloadTask *)downloadCompletionTaskWithURL:(NSURL *)URL
+- (NSString *)fullFilePathWithFileName:(NSString *)fileName
 {
-    LNDownloadTask *task = nil;
-    NSString *filePath = [self fullFilePathWithURL:URL];
-    NSInteger receivedSize = [self downloadedSizeWithFilePath:filePath];
-    NSInteger totalSize = [self totalSizeofFileWithURL:URL];
-    if(receivedSize != 0 && receivedSize == totalSize){
-        task = [[LNDownloadTask alloc] init];
-        task.totalSize = totalSize;
-        task.filePath = filePath;
+    if(!fileName){
+        fileName = NSStringFromClass([self class]);
     }
-    return task;
+    return [self.downloadFileDirectory stringByAppendingPathComponent:fileName];
 }
 
 #pragma mark - TotalSizeInfo
 - (NSInteger)totalSizeofFileWithURL:(NSURL *)URL
 {
-    NSInteger totalSize = 0;
     NSString *fileName = LNDownloadFileNameForURL(URL);
+    return [self totalSizeofFileName:fileName];
+}
+
+- (NSInteger)totalSizeofFileName:(NSString *)fileName
+{
+    if(!fileName) return 0;
+    NSInteger totalSize = 0;
     NSDictionary *dict = [self getTotalSizeInfo];
     if(dict && dict[fileName]){
         totalSize = [dict[fileName] integerValue];
@@ -538,7 +605,10 @@ didReceiveResponse:(NSURLResponse *)response
 {
     NSString *fileName = dataTask.taskDescription;
     LNDownloadTask *task = [self getTaskWithFileName:fileName];
-    if(!task) return;
+    if(!task) {
+        completionHandler(NSURLSessionResponseAllow);
+        return;
+    };
     
     [task openWriteStream];
     NSInteger totalSize = (long)response.expectedContentLength + [self downloadedSizeWithFilePath:task.filePath];
@@ -563,6 +633,9 @@ didReceiveResponse:(NSURLResponse *)response
     if(task.totalSize > 0){
         progress = 1.0 * receivedSize / task.totalSize;
     }
+    if (task.state == LNDownloadStateSuspended || task.state == LNDownloadStateCanceled) {
+        return;
+    }
     dispatch_async(dispatch_get_main_queue(), ^{
         LN_SAFE_BLOCK(task.progressBlock, receivedSize, task.totalSize, progress);
         if(task.associateTasks.count > 0){
@@ -581,17 +654,17 @@ didCompleteWithError:(NSError *)error
     NSString *fileName = dataTask.taskDescription;
     LNDownloadTask *task = [self getTaskWithFileName:fileName];
     if(!task) return;
-    if (task.state == LNDownloadStateSuspended || task.state == LNDownloadStateCanceled) {
-        return;
-    }
-    BOOL isSucceed = error == nil ? YES : NO;
-    [self endTask:task isSucceed:isSucceed];
     if(task.destPath){
         NSError *error;
         if (![[NSFileManager defaultManager] moveItemAtPath:task.filePath toPath:task.destPath error:&error]) {
             NSLog(@"moveItemAtPath error: %@", error);
         }
     }
+    if (task.state == LNDownloadStateSuspended || task.state == LNDownloadStateCanceled) {
+        return;
+    }
+    BOOL isSucceed = error == nil ? YES : NO;
+    [self endTask:task isSucceed:isSucceed];
     dispatch_async(dispatch_get_main_queue(), ^{
         task.completionBlock(isSucceed, task.filePath, error);
         LN_SAFE_BLOCK(task.completionBlock, isSucceed, task.filePath, error);
