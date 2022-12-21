@@ -422,6 +422,7 @@ static inline NSString * _Nonnull LNDownloadFileNameForURL(NSURL * _Nullable URL
         [task.dataTask cancel];
         [_downloadingTasks removeObject:task];
     }
+    LN_SAFE_BLOCK(task.progressBlock, 0, 0, 0);
     [task closeWriteStream];
     LN_UNLOCK(_taskLock);
     /**取消一个任务，填充下一个任务*/
